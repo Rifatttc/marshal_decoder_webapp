@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-MARSHAL DECOMPILER WEB APP v2.1
-Hacking Terminal Style - Fixed for Python 3.8+
+MARSHAL DECOMPILER WEB APP v2.2
+Supports: .py | .so | .7z | .zip | Binary files
 """
 
 from flask import Flask, request, jsonify, render_template
@@ -14,71 +14,39 @@ import os
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 15 * 1024 * 1024  # 15MB
 
+
+# ============== CORE DECODER ==============
 
 def find_marshal_payloads(source_code: str):
-    """Python 3.8+ compatible robust marshal payload finder"""
+    """Find marshal payloads from .py source"""
+    payloads = []
     try:
         tree = ast.parse(source_code)
-    except SyntaxError:
-        return []
-
-    payloads = set()
-
-    def is_bytes_node(node):
-        if isinstance(node, ast.Constant) and isinstance(node.value, (bytes, bytearray)):
-            return node.value
-        return None
-
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-
-        func = node.func
-
-        # Case 1: something.loads(b'...')
-        if isinstance(func, ast.Attribute) and func.attr == 'loads' and node.args:
-            val = is_bytes_node(node.args[0])
-            if val and len(val) > 50:
-                payloads.add(bytes(val))
-
-            # __import__('marshal').loads(...)
-            if isinstance(func.value, ast.Call):
-                if isinstance(func.value.func, ast.Name) and func.value.func.id == '__import__' and node.args:
-                    val = is_bytes_node(node.args[0])
-                    if val and len(val) > 50:
-                        payloads.add(bytes(val))
-
-        # Case 2: from marshal import loads → loads(b'...')
-        elif isinstance(func, ast.Name) and func.id == 'loads' and node.args:
-            val = is_bytes_node(node.args[0])
-            if val and len(val) > 50:
-                payloads.add(bytes(val))
-
-    # Fallback: all large byte literals
-    if not payloads:
         for node in ast.walk(tree):
-            val = is_bytes_node(node)
-            if val and len(val) > 80:
-                if val[:1] in (b'\xe3', b'\x63', b'\x2e', b'\x0d'):
-                    payloads.add(bytes(val))
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Attribute) and func.attr == 'loads' and node.args:
+                    arg = node.args[0]
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, (bytes, bytearray)):
+                        if len(arg.value) > 50:
+                            payloads.append(bytes(arg.value))
+                elif isinstance(func, ast.Name) and func.id == 'loads' and node.args:
+                    arg = node.args[0]
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, (bytes, bytearray)):
+                        if len(arg.value) > 50:
+                            payloads.append(bytes(arg.value))
+    except:
+        pass
+    return payloads
 
-    return list(payloads)
 
-
-def try_unwrap(data, max_depth=12):
+def try_unwrap(data, max_depth=10):
     if not isinstance(data, (bytes, bytearray)):
         return None
-    
     current = bytes(data)
-    seen = set()
-
     for _ in range(max_depth):
-        h = hash(current)
-        if h in seen: break
-        seen.add(h)
-
         try:
             obj = marshal.loads(current)
             if isinstance(obj, types.CodeType):
@@ -86,64 +54,50 @@ def try_unwrap(data, max_depth=12):
             if isinstance(obj, (bytes, bytearray)):
                 current = bytes(obj)
                 continue
-        except: pass
-
+        except:
+            pass
         try:
-            import zlib
-            decom = zlib.decompress(current)
-            if isinstance(decom, (bytes, bytearray)) and decom != current:
-                current = bytes(decom)
-                continue
-        except: pass
-
-        try:
-            import base64
+            import zlib, base64, bz2
+            for mod in [zlib, bz2]:
+                try:
+                    decom = mod.decompress(current)
+                    if isinstance(decom, (bytes, bytearray)) and decom != current:
+                        current = bytes(decom)
+                        break
+                except:
+                    continue
             dec = base64.b64decode(current, validate=False)
-            if isinstance(dec, (bytes, bytearray)) and len(dec) > 0 and dec != current:
+            if isinstance(dec, (bytes, bytearray)) and len(dec) > 0:
                 current = bytes(dec)
-                continue
-        except: pass
-
-        try:
-            import bz2
-            decom = bz2.decompress(current)
-            if isinstance(decom, (bytes, bytearray)) and decom != current:
-                current = bytes(decom)
-                continue
-        except: pass
-
+        except:
+            pass
         break
-
     try:
         obj = marshal.loads(current)
         if isinstance(obj, types.CodeType):
             return obj
-    except: pass
-
+    except:
+        pass
     return None
 
 
-def extract_code_info(code_obj, depth=0, max_depth=6):
+def extract_code_info(code_obj, depth=0, max_depth=5):
     if depth > max_depth or not isinstance(code_obj, types.CodeType):
         return None
-
     output = io.StringIO()
     dis.dis(code_obj, file=output)
-
-    strings, nested = [], []
+    strings = []
+    nested = []
     for const in code_obj.co_consts:
         if isinstance(const, str) and const.strip():
-            display = const if len(const) < 300 else const[:300] + " ...[truncated]"
+            display = const if len(const) < 300 else const[:300] + "..."
             strings.append(display)
         elif isinstance(const, types.CodeType):
             n = extract_code_info(const, depth + 1, max_depth)
-            if n: nested.append(n)
-
+            if n:
+                nested.append(n)
     return {
         "name": code_obj.co_name,
-        "filename": code_obj.co_filename or "<unknown>",
-        "first_line": code_obj.co_firstlineno,
-        "argcount": code_obj.co_argcount,
         "disassembly": output.getvalue(),
         "strings": strings,
         "nested_functions": nested
@@ -151,46 +105,28 @@ def extract_code_info(code_obj, depth=0, max_depth=6):
 
 
 def generate_decoded_output(info):
-    if not info: return "# ERROR"
+    if not info:
+        return "# ERROR"
     lines = []
-    lines.append("=" * 70)
-    lines.append("     MARSHAL DECOMPILER v2.1 - DECODE REPORT")
-    lines.append("=" * 70)
-    lines.append(f"[+] Module Name      : {info['name']}")
-    lines.append(f"[+] Total Strings    : {len(info['strings'])}")
-    lines.append(f"[+] Nested Functions : {len(info['nested_functions'])}")
-    lines.append("")
+    lines.append("=" * 65)
+    lines.append("MARSHAL DECOMPILER v2.2 - DECODE REPORT")
+    lines.append("=" * 65)
+    lines.append(f"[+] Module: {info['name']}")
+    lines.append(f"[+] Strings Found: {len(info['strings'])}")
     if info['strings']:
-        lines.append("--- EXTRACTED STRINGS ---")
-        for i, s in enumerate(info['strings'][:25]):
-            lines.append(f"    [{i:02d}] {s}")
-        lines.append("")
-    lines.append("--- DISASSEMBLY ---")
+        lines.append("\n--- EXTRACTED STRINGS ---")
+        for i, s in enumerate(info['strings'][:20]):
+            lines.append(f"[{i}] {s}")
+    lines.append("\n--- DISASSEMBLY ---")
     lines.append(info['disassembly'])
-    for i, func in enumerate(info['nested_functions']):
-        lines.append(f"\n--- FUNCTION: {func['name']} ---")
-        lines.append(func['disassembly'][:1500])
-    lines.append("\n" + "=" * 70)
+    lines.append("=" * 65)
     return "\n".join(lines)
 
 
 def decode_file(source_code: str, filename: str = "unknown.py"):
-    if not source_code or len(source_code) > 8*1024*1024:
-        return {"success": False, "error": "File too large or empty"}
-
     payloads = find_marshal_payloads(source_code)
-
     if not payloads:
-        return {
-            "success": False, 
-            "error": "No marshal payload detected.\n\n"
-                     "Supported patterns:\n"
-                     "• import marshal → marshal.loads(b'...')\n"
-                     "• from marshal import loads → loads(b'...')\n"
-                     "• import marshal as m → m.loads(b'...')\n"
-                     "• Large byte literals anywhere\n\n"
-                     "Tip: If still failing, share first 15 lines of your .py file."
-        }
+        return {"success": False, "error": "No marshal payload found in this .py file."}
 
     for payload in payloads:
         code_obj = try_unwrap(payload)
@@ -200,14 +136,111 @@ def decode_file(source_code: str, filename: str = "unknown.py"):
                 return {
                     "success": True,
                     "code": generate_decoded_output(info),
-                    "original_filename": filename,
-                    "module_name": info['name'],
-                    "strings_found": len(info['strings']),
-                    "functions_found": len(info['nested_functions']) + 1
+                    "original_filename": filename
                 }
+    return {"success": False, "error": "Failed to reconstruct code object."}
 
-    return {"success": False, "error": "Payload found but could not reconstruct CodeType."}
 
+# ============== BINARY FILE SUPPORT (.so, .7z, .zip) ==============
+
+def decode_binary_file(data: bytes, filename: str):
+    import py7zr
+    import zipfile
+
+    results = []
+    extracted = []
+
+    # Try direct marshal search in binary
+    try:
+        for start in [b'\xe3', b'\x63']:
+            idx = data.find(start)
+            if idx != -1:
+                chunk = data[idx:idx + 400000]
+                try:
+                    obj = marshal.loads(chunk)
+                    if isinstance(obj, types.CodeType):
+                        info = extract_code_info(obj)
+                        if info:
+                            results.append(generate_decoded_output(info))
+                except:
+                    pass
+    except:
+        pass
+
+    # Try extract as 7z
+    try:
+        with py7zr.SevenZipFile(io.BytesIO(data), mode='r') as z:
+            for name, bio in z.readall().items():
+                extracted.append((name, bio.read()))
+    except:
+        pass
+
+    # Try extract as ZIP
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            for name in z.namelist():
+                extracted.append((name, z.read(name)))
+    except:
+        pass
+
+    # Carve embedded archives
+    if not extracted:
+        for magic, ext in [(b'7z\xBC\xAF\x27\x1C', '7z'), (b'PK\x03\x04', 'zip')]:
+            idx = data.find(magic)
+            if idx != -1:
+                try:
+                    if ext == '7z':
+                        with py7zr.SevenZipFile(io.BytesIO(data[idx:]), mode='r') as z:
+                            for name, bio in z.readall().items():
+                                extracted.append((name, bio.read()))
+                    else:
+                        with zipfile.ZipFile(io.BytesIO(data[idx:])) as z:
+                            for name in z.namelist():
+                                extracted.append((name, z.read(name)))
+                except:
+                    pass
+
+    # Process extracted files
+    for name, content in extracted:
+        if name.endswith('.py'):
+            try:
+                text = content.decode('utf-8', errors='replace')
+                res = decode_file(text, name)
+                if res.get('success'):
+                    results.append(res['code'])
+            except:
+                pass
+        else:
+            # Search marshal inside extracted binary
+            try:
+                for start in [b'\xe3', b'\x63']:
+                    idx = content.find(start)
+                    if idx != -1:
+                        chunk = content[idx:idx+300000]
+                        obj = marshal.loads(chunk)
+                        if isinstance(obj, types.CodeType):
+                            info = extract_code_info(obj)
+                            if info:
+                                results.append(generate_decoded_output(info))
+            except:
+                pass
+
+    if results:
+        return {
+            "success": True,
+            "code": "\n\n".join(results),
+            "original_filename": filename,
+            "extracted_count": len(extracted),
+            "note": "Binary file processed successfully."
+        }
+    else:
+        return {
+            "success": False,
+            "error": "No marshal payload or extractable archive found in this file."
+        }
+
+
+# ============== ROUTES ==============
 
 @app.route('/')
 def index():
@@ -220,14 +253,22 @@ def decode_route():
         return jsonify({"success": False, "error": "No file uploaded"}), 400
 
     file = request.files['file']
-    if file.filename == '' or not file.filename.lower().endswith('.py'):
-        return jsonify({"success": False, "error": "Only .py files allowed"}), 400
+    if file.filename == '':
+        return jsonify({"success": False, "error": "Empty filename"}), 400
 
     try:
-        content = file.read().decode('utf-8', errors='replace')
-        result = decode_file(content, file.filename)
+        file_data = file.read()
+        filename = file.filename
+
+        if filename.lower().endswith('.py'):
+            content = file_data.decode('utf-8', errors='replace')
+            result = decode_file(content, filename)
+        else:
+            result = decode_binary_file(file_data, filename)
+
         result['timestamp'] = datetime.utcnow().isoformat() + 'Z'
         return jsonify(result)
+
     except Exception as e:
         return jsonify({"success": False, "error": f"Server error: {str(e)}"}), 500
 
