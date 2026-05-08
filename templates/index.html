@@ -1,1 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MARSHAL DECOMPILER v2.0 // HACKER TERMINAL</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=VT323&amp;family=Share+Tech+Mono&amp;display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="crt">
+        <!-- Scanlines overlay -->
+        <div class="scanlines"></div>
+        
+        <!-- Main Terminal Container -->
+        <div class="terminal">
+            
+            <!-- Top Bar -->
+            <div class="terminal-header">
+                <div class="header-left">
+                    <span class="status-dot"></span>
+                    <span class="header-text">root@blackhat:\~# ./marshal_decompiler --secure --no-exec</span>
+                </div>
+                <div class="header-right">
+                    <span class="version">v2.0.1</span>
+                    <span class="status">CONNECTED</span>
+                </div>
+            </div>
 
+            <!-- Banner -->
+            <div class="banner">
+                <pre>
+███╗   ███╗ █████╗ ██████╗ ███████╗██╗  ██╗ █████╗ ██╗     
+████╗ ████║██╔══██╗██╔══██╗██╔════╝██║  ██║██╔══██╗██║     
+██╔████╔██║███████║██████╔╝███████╗███████║███████║██║     
+██║╚██╔╝██║██╔══██║██╔══██╗╚════██║██╔══██║██╔══██║██║     
+██║ ╚═╝ ██║██║  ██║██║  ██║███████║██║  ██║██║  ██║███████╗
+╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
+                DECOMPILER // BYPASS MARSHAL OBFUSCATION
+                </pre>
+                <div class="subtitle">POWERFUL • SAFE • NO EXECUTION • PURE BYTECODE ANALYSIS</div>
+            </div>
+
+            <!-- Upload Zone -->
+            <div id="upload-section" class="section">
+                <div class="section-title">▶ UPLOAD TARGET FILE</div>
+                
+                <div class="dropzone" id="dropzone">
+                    <div class="dropzone-content">
+                        <div class="icon">📁</div>
+                        <div class="text">DRAG &amp; DROP .py FILE HERE</div>
+                        <div class="subtext">or click to browse • max 8MB</div>
+                        <button class="btn btn-primary" id="select-btn">SELECT MARSHAL OBFUSCATED .py</button>
+                    </div>
+                    <input type="file" id="file-input" accept=".py" hidden>
+                </div>
+                
+                <div id="file-info" class="file-info hidden">
+                    <div class="file-details">
+                        <span class="file-icon">📄</span>
+                        <span id="filename-display" class="filename"></span>
+                        <span id="filesize-display" class="filesize"></span>
+                    </div>
+                    <button class="btn btn-danger btn-small" id="remove-btn">REMOVE</button>
+                </div>
+            </div>
+
+            <!-- Decode Button -->
+            <div class="section" id="action-section">
+                <button class="btn btn-decode" id="decode-btn" disabled>
+                    <span class="btn-text">▶ START DECODE SEQUENCE</span>
+                    <span class="btn-sub">Extract • Unwrap • Disassemble</span>
+                </button>
+            </div>
+
+            <!-- Loading / Progress Section -->
+            <div id="loading-section" class="section hidden">
+                <div class="section-title">▶ DECODE IN PROGRESS — DO NOT INTERRUPT</div>
+                
+                <div class="terminal-log" id="log-output">
+                    <!-- JS will append lines here -->
+                </div>
+                
+                <div class="progress-wrapper">
+                    <div class="progress-label">
+                        <span>PROGRESS</span>
+                        <span id="progress-text">00%</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="progress-bar"></div>
+                        <div class="progress-glow"></div>
+                    </div>
+                </div>
+                
+                <div class="status-text" id="status-text">INITIALIZING SECURE ANALYSIS ENGINE...</div>
+            </div>
+
+            <!-- Result Section -->
+            <div id="result-section" class="section hidden">
+                <div class="result-header">
+                    <div class="result-title">
+                        <span class="success-icon">✅</span> 
+                        <span>DECODE COMPLETE — PAYLOAD SUCCESSFULLY RECOVERED</span>
+                    </div>
+                    <div class="result-meta" id="result-meta"></div>
+                </div>
+
+                <div class="code-window">
+                    <div class="code-header">
+                        <span>DECODED_BYTECODE_REPORT.txt</span>
+                        <div class="code-actions">
+                            <button class="btn btn-small" id="copy-btn">COPY</button>
+                        </div>
+                    </div>
+                    <pre><code id="decoded-code"></code></pre>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-success" id="download-py-btn">
+                        ⬇️ DOWNLOAD AS .py
+                    </button>
+                    <button class="btn btn-success" id="download-txt-btn">
+                        ⬇️ DOWNLOAD AS .txt
+                    </button>
+                    <button class="btn btn-primary" id="new-btn">
+                        🔄 DECODE NEW FILE
+                    </button>
+                </div>
+                
+                <div class="warning">
+                    ⚠️ This is a bytecode-level reconstruction. Variable names &amp; comments from original source may be lost or renamed.
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                <div>SECURE MODE • NO CODE EXECUTION • PURE STATIC ANALYSIS</div>
+                <div>Deployed via GitHub + Render • No custom domain</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
