@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-MARSHAL DECOMPILER v2.2 - Final Working Version
+MARSHAL DECOMPILER v2.3
+Supports: .py + .so + Binary files (with strings + symbols + marshal)
 """
 
 from flask import Flask, request, jsonify, render_template
@@ -17,7 +18,9 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 15 * 1024 * 1024
 
 
-def find_marshal_payloads(source_code):
+# ============== MARSHAL DECODER ==============
+
+def find_marshal_payloads(source_code: str):
     payloads = []
     try:
         tree = ast.parse(source_code)
@@ -97,10 +100,11 @@ def extract_code_info(code_obj, depth=0, max_depth=5):
 
 
 def generate_decoded_output(info):
-    if not info: return "# ERROR"
-    lines = ["=" * 65, "MARSHAL DECOMPILER v2.2", "=" * 65]
+    if not info:
+        return "# ERROR"
+    lines = ["=" * 65, "MARSHAL DECOMPILER v2.3", "=" * 65]
     lines.append(f"[+] Module: {info['name']}")
-    if info['strings']:
+    if info.get('strings'):
         lines.append("\n--- STRINGS ---")
         for i, s in enumerate(info['strings'][:15]):
             lines.append(f"[{i}] {s}")
@@ -109,7 +113,7 @@ def generate_decoded_output(info):
     return "\n".join(lines)
 
 
-def decode_file(source_code, filename="unknown.py"):
+def decode_file(source_code: str, filename: str = "unknown.py"):
     payloads = find_marshal_payloads(source_code)
     if not payloads:
         return {"success": False, "error": "No marshal payload found."}
@@ -119,42 +123,63 @@ def decode_file(source_code, filename="unknown.py"):
             info = extract_code_info(obj)
             if info:
                 return {"success": True, "code": generate_decoded_output(info), "original_filename": filename}
-    return {"success": False, "error": "Failed to decode."}
+    return {"success": False, "error": "Failed to decode marshal payload."}
 
 
-def decode_binary_file(data, filename):
+# ============== BINARY FILE HANDLER (.so / .7z etc) ==============
+
+def decode_binary_file(data: bytes, filename: str):
     results = []
-    strings = []
+    strings_list = []
 
-    # Extract strings
+    # Extract readable strings
     try:
         found = re.findall(b'[\x20-\x7E]{8,}', data)
-        strings = [s.decode('utf-8', errors='ignore') for s in found[:100]]
+        strings_list = [s.decode('utf-8', errors='ignore') for s in found[:150]]
     except:
         pass
 
-    # Search marshal
+    # Search for embedded marshal
     for magic in [b'\xe3', b'\x63']:
         idx = 0
         while True:
             idx = data.find(magic, idx)
-            if idx == -1: break
+            if idx == -1:
+                break
             try:
-                obj = marshal.loads(data[idx:idx+300000])
+                obj = marshal.loads(data[idx:idx+400000])
                 if isinstance(obj, types.CodeType):
                     info = extract_code_info(obj)
-                    if info: results.append(generate_decoded_output(info))
+                    if info:
+                        results.append(generate_decoded_output(info))
             except:
                 pass
             idx += 1
 
-    if results or strings:
-        output = "\n".join(results) if results else ""
-        if strings:
-            output += "\n\n=== STRINGS FROM BINARY ===\n" + "\n".join(strings)
-        return {"success": True, "code": output, "original_filename": filename}
-    return {"success": False, "error": "No useful data found in binary file."}
+    # Build output
+    output = ""
+    if results:
+        output += "\n".join(results) + "\n\n"
 
+    if strings_list:
+        output += "=== EXTRACTED STRINGS FROM BINARY ===\n"
+        output += "\n".join(strings_list)
+
+    if output.strip():
+        return {
+            "success": True,
+            "code": output,
+            "original_filename": filename,
+            "note": "Binary analysis complete (strings + marshal search)"
+        }
+    else:
+        return {
+            "success": False,
+            "error": "No meaningful data found in this binary file."
+        }
+
+
+# ============== ROUTES ==============
 
 @app.route('/')
 def index():
@@ -164,18 +189,20 @@ def index():
 @app.route('/decode', methods=['POST'])
 def decode_route():
     if 'file' not in request.files:
-        return jsonify({"success": False, "error": "No file"}), 400
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
+
     file = request.files['file']
     if file.filename == '':
-        return jsonify({"success": False, "error": "Empty file"}), 400
+        return jsonify({"success": False, "error": "Empty filename"}), 400
 
-    data = file.read()
     try:
+        file_data = file.read()
         if file.filename.lower().endswith('.py'):
-            content = data.decode('utf-8', errors='replace')
+            content = file_data.decode('utf-8', errors='replace')
             result = decode_file(content, file.filename)
         else:
-            result = decode_binary_file(data, file.filename)
+            result = decode_binary_file(file_data, file.filename)
+
         result['timestamp'] = datetime.utcnow().isoformat()
         return jsonify(result)
     except Exception as e:
@@ -183,5 +210,5 @@ def decode_route():
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
