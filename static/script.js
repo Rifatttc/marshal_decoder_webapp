@@ -1,7 +1,6 @@
-// MARSHAL DECOMPILER v2.0 - HACKING TERMINAL JS
+// MARSHAL DECOMPILER v2.2 - HACKING TERMINAL JS
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Elements
     const dropzone = document.getElementById('dropzone');
     const fileInput = document.getElementById('file-input');
     const selectBtn = document.getElementById('select-btn');
@@ -28,14 +27,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentFile = null;
     let decodedResult = null;
 
-    // ========== FILE HANDLING ==========
     function handleFile(file) {
-        if (!file.name.toLowerCase().endsWith('.py')) {
-            alert('ONLY .py FILES ARE SUPPORTED');
-            return;
-        }
-        if (file.size > 8 * 1024 * 1024) {
-            alert('FILE TOO LARGE (MAX 8MB)');
+        if (file.size > 15 * 1024 * 1024) {
+            alert('FILE TOO LARGE (MAX 15MB)');
             return;
         }
 
@@ -48,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
         decodeBtn.disabled = false;
     }
 
-    // Drag & Drop
+    // Drag & Drop + Click
     dropzone.addEventListener('click', () => fileInput.click());
     selectBtn.addEventListener('click', (e) => {
         e.stopImmediatePropagation();
@@ -64,16 +58,12 @@ document.addEventListener('DOMContentLoaded', () => {
         dropzone.classList.add('dragover');
     });
 
-    dropzone.addEventListener('dragleave', () => {
-        dropzone.classList.remove('dragover');
-    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
 
     dropzone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropzone.classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) {
-            handleFile(e.dataTransfer.files[0]);
-        }
+        if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
     });
 
     removeBtn.addEventListener('click', () => {
@@ -84,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fileInput.value = '';
     });
 
-    // ========== DECODE BUTTON ==========
+    // Decode Button
     decodeBtn.addEventListener('click', async () => {
         if (!currentFile) return;
 
@@ -96,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
         progressBar.style.width = '0%';
         progressText.textContent = '00%';
         logOutput.innerHTML = '';
-        statusText.textContent = 'INITIALIZING SECURE ANALYSIS ENGINE...';
+        statusText.textContent = 'INITIALIZING...';
 
         const animationDone = startLoadingAnimation();
 
@@ -108,14 +98,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: formData
             });
-
             const result = await response.json();
             await animationDone;
 
             if (result.success) {
                 showResult(result);
             } else {
-                showError(result.error || 'Unknown decode error');
+                showError(result.error || 'Decode failed');
             }
         } catch (err) {
             await animationDone;
@@ -123,36 +112,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ========== LOADING ANIMATION ==========
     function startLoadingAnimation() {
         return new Promise((resolve) => {
             const logs = [
-                { p: 3,  msg: "[BOOT] Secure sandbox initialized. No execution will occur." },
-                { p: 8,  msg: "[INFO] File loaded into isolated memory buffer." },
-                { p: 14, msg: "[*] Parsing Python source with AST..." },
-                { p: 22, msg: "[*] Scanning for marshal.loads() calls..." },
-                { p: 31, msg: "[*] Payload candidate discovered. Extracting bytes..." },
-                { p: 39, msg: "[*] Attempting layer unwrapping (marshal → zlib → base64)..." },
-                { p: 48, msg: "[*] Reconstructing Python CodeType object..." },
-                { p: 57, msg: "[*] Running recursive disassembly..." },
-                { p: 66, msg: "[*] Extracting string constants..." },
-                { p: 75, msg: "[*] Generating decompile report..." },
-                { p: 84, msg: "[*] Final validation complete." },
-                { p: 93, msg: "[✓] Analysis finished." },
-                { p: 100, msg: "[SUCCESS] Marshal payload successfully decoded." }
+                { p: 5, msg: "[BOOT] Secure analysis environment initialized" },
+                { p: 15, msg: "[*] Analyzing file structure..." },
+                { p: 30, msg: "[*] Searching for marshal payloads or archives..." },
+                { p: 50, msg: "[*] Extracting embedded 7z/ZIP if present..." },
+                { p: 70, msg: "[*] Reconstructing code objects..." },
+                { p: 90, msg: "[*] Generating disassembly report..." },
+                { p: 100, msg: "[SUCCESS] Analysis complete" }
             ];
 
-            let currentProgress = 0;
+            let progress = 0;
             let logIndex = 0;
 
             const interval = setInterval(() => {
-                currentProgress += Math.random() * 4 + 1.5;
-                if (currentProgress > 100) currentProgress = 100;
+                progress += Math.random() * 5 + 2;
+                if (progress > 100) progress = 100;
 
-                progressBar.style.width = currentProgress + '%';
-                progressText.textContent = String(Math.floor(currentProgress)).padStart(2, '0') + '%';
+                progressBar.style.width = progress + '%';
+                progressText.textContent = String(Math.floor(progress)).padStart(2, '0') + '%';
 
-                while (logIndex < logs.length && currentProgress >= logs[logIndex].p) {
+                while (logIndex < logs.length && progress >= logs[logIndex].p) {
                     const line = document.createElement('div');
                     line.textContent = logs[logIndex].msg;
                     logOutput.appendChild(line);
@@ -160,102 +142,66 @@ document.addEventListener('DOMContentLoaded', () => {
                     logIndex++;
                 }
 
-                if (currentProgress < 30) {
-                    statusText.textContent = 'ANALYZING FILE STRUCTURE...';
-                } else if (currentProgress < 55) {
-                    statusText.textContent = 'UNWRAPPING OBFUSCATION LAYERS...';
-                } else if (currentProgress < 80) {
-                    statusText.textContent = 'DISASSEMBLING BYTECODE...';
-                } else {
-                    statusText.textContent = 'FINALIZING REPORT...';
-                }
-
-                if (currentProgress >= 100) {
+                if (progress >= 100) {
                     clearInterval(interval);
                     setTimeout(() => {
                         statusText.textContent = 'DECODE SEQUENCE COMPLETE';
                         resolve();
-                    }, 420);
+                    }, 400);
                 }
-            }, 95);
+            }, 90);
         });
     }
 
-    // ========== SHOW RESULT ==========
     function showResult(result) {
         loadingSection.classList.add('hidden');
         resultSection.classList.remove('hidden');
-
         decodedResult = result;
 
-        const metaHTML = `
+        resultMeta.innerHTML = `
             <span>FILE: <strong>${result.original_filename}</strong></span> • 
-            <span>MODULE: <strong>${result.module_name}</strong></span> • 
-            <span>STRINGS: <strong>${result.strings_found}</strong></span> • 
-            <span>FUNCTIONS: <strong>${result.functions_found}</strong></span>
+            <span>STATUS: <strong>SUCCESS</strong></span>
         `;
-        resultMeta.innerHTML = metaHTML;
-
-        decodedCode.textContent = result.code || 'No output generated.';
-        resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        decodedCode.textContent = result.code || 'No output';
+        resultSection.scrollIntoView({ behavior: 'smooth' });
     }
 
     function showError(message) {
         loadingSection.classList.add('hidden');
         resultSection.classList.remove('hidden');
-
-        resultMeta.innerHTML = `<span style="color:#ff0033">DECODE FAILED</span>`;
-        decodedCode.innerHTML = `<span style="color:#ff0033">ERROR: ${message}</span>\n\n` +
-            `TIPS:\n` +
-            `• Make sure the file actually contains "import marshal" + "marshal.loads(b'...')"\n` +
-            `• Some advanced obfuscators use different techniques`;
-        decodedCode.style.color = '#ff6666';
+        resultMeta.innerHTML = `<span style="color:#ff0033">FAILED</span>`;
+        decodedCode.innerHTML = `<span style="color:#ff6666">${message}</span>`;
     }
 
-    // ========== ACTION BUTTONS ==========
+    // Action Buttons
     copyBtn.addEventListener('click', () => {
-        if (!decodedResult || !decodedResult.code) return;
-        
+        if (!decodedResult) return;
         navigator.clipboard.writeText(decodedResult.code).then(() => {
-            const originalText = copyBtn.textContent;
+            const old = copyBtn.textContent;
             copyBtn.textContent = 'COPIED!';
-            copyBtn.style.borderColor = '#00cc66';
-            setTimeout(() => {
-                copyBtn.textContent = originalText;
-                copyBtn.style.borderColor = '';
-            }, 1800);
-        }).catch(() => {
-            const textarea = document.createElement('textarea');
-            textarea.value = decodedResult.code;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-            alert('Code copied to clipboard (fallback method)');
+            setTimeout(() => copyBtn.textContent = old, 1500);
         });
     });
 
     function downloadFile(content, filename) {
-        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = filename;
-        document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
 
     downloadPyBtn.addEventListener('click', () => {
         if (!decodedResult) return;
-        const name = (decodedResult.original_filename || 'decoded').replace('.py', '') + '_decoded.py';
+        const name = decodedResult.original_filename.replace(/\.[^/.]+$/, "") + "_decoded.py";
         downloadFile(decodedResult.code, name);
     });
 
     downloadTxtBtn.addEventListener('click', () => {
         if (!decodedResult) return;
-        const name = (decodedResult.original_filename || 'decoded').replace('.py', '') + '_decoded.txt';
+        const name = decodedResult.original_filename.replace(/\.[^/.]+$/, "") + "_decoded.txt";
         downloadFile(decodedResult.code, name);
     });
 
@@ -264,7 +210,6 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadSection.style.display = 'block';
         actionSection.style.display = 'block';
         loadingSection.classList.add('hidden');
-        
         currentFile = null;
         decodedResult = null;
         fileInfo.classList.add('hidden');
@@ -274,6 +219,4 @@ document.addEventListener('DOMContentLoaded', () => {
         decodedCode.style.color = '';
         logOutput.innerHTML = '';
     });
-
-    console.log('%c[SECURE] Marshal Decompiler Terminal initialized. All operations are static analysis only.', 'color:#00ff41');
 });
