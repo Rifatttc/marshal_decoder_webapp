@@ -3,16 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MARSHAL DECOMPILER v2.0 // HACKER TERMINAL</title>
+    <title>MARSHAL DECOMPILER v2.2 // HACKER TERMINAL</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=VT323&amp;family=Share+Tech+Mono&amp;display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="crt">
-        <!-- Scanlines overlay -->
         <div class="scanlines"></div>
         
-        <!-- Main Terminal Container -->
         <div class="terminal">
             
             <!-- Top Bar -->
@@ -22,7 +20,7 @@
                     <span class="header-text">root@blackhat:\~# ./marshal_decompiler --secure --no-exec</span>
                 </div>
                 <div class="header-right">
-                    <span class="version">v2.0.1</span>
+                    <span class="version">v2.2</span>
                     <span class="status">CONNECTED</span>
                 </div>
             </div>
@@ -38,7 +36,7 @@
 ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
                 DECOMPILER // BYPASS MARSHAL OBFUSCATION
                 </pre>
-                <div class="subtitle">POWERFUL • SAFE • NO EXECUTION • PURE BYTECODE ANALYSIS</div>
+                <div class="subtitle">POWERFUL • SAFE • SUPPORTS .py • .so • .7z • BINARY</div>
             </div>
 
             <!-- Upload Zone -->
@@ -48,11 +46,11 @@
                 <div class="dropzone" id="dropzone">
                     <div class="dropzone-content">
                         <div class="icon">📁</div>
-                        <div class="text">DRAG &amp; DROP .py FILE HERE</div>
-                        <div class="subtext">or click to browse • max 8MB</div>
-                        <button class="btn btn-primary" id="select-btn">SELECT MARSHAL OBFUSCATED .py</button>
+                        <div class="text">DRAG &amp; DROP FILE HERE</div>
+                        <div class="subtext">Supports: .py • .so • .7z • .zip • Any binary • max 15MB</div>
+                        <button class="btn btn-primary" id="select-btn">SELECT FILE (.py / .so / .7z)</button>
                     </div>
-                    <input type="file" id="file-input" accept=".py" hidden>
+                    <input type="file" id="file-input" hidden>
                 </div>
                 
                 <div id="file-info" class="file-info hidden">
@@ -73,13 +71,11 @@
                 </button>
             </div>
 
-            <!-- Loading / Progress Section -->
+            <!-- Loading Section -->
             <div id="loading-section" class="section hidden">
                 <div class="section-title">▶ DECODE IN PROGRESS — DO NOT INTERRUPT</div>
                 
-                <div class="terminal-log" id="log-output">
-                    <!-- JS will append lines here -->
-                </div>
+                <div class="terminal-log" id="log-output"></div>
                 
                 <div class="progress-wrapper">
                     <div class="progress-label">
@@ -91,7 +87,6 @@
                         <div class="progress-glow"></div>
                     </div>
                 </div>
-                
                 <div class="status-text" id="status-text">INITIALIZING SECURE ANALYSIS ENGINE...</div>
             </div>
 
@@ -100,7 +95,7 @@
                 <div class="result-header">
                     <div class="result-title">
                         <span class="success-icon">✅</span> 
-                        <span>DECODE COMPLETE — PAYLOAD SUCCESSFULLY RECOVERED</span>
+                        <span>DECODE COMPLETE</span>
                     </div>
                     <div class="result-meta" id="result-meta"></div>
                 </div>
@@ -108,34 +103,25 @@
                 <div class="code-window">
                     <div class="code-header">
                         <span>DECODED_BYTECODE_REPORT.txt</span>
-                        <div class="code-actions">
-                            <button class="btn btn-small" id="copy-btn">COPY</button>
-                        </div>
+                        <button class="btn btn-small" id="copy-btn">COPY</button>
                     </div>
                     <pre><code id="decoded-code"></code></pre>
                 </div>
 
                 <div class="action-buttons">
-                    <button class="btn btn-success" id="download-py-btn">
-                        ⬇️ DOWNLOAD AS .py
-                    </button>
-                    <button class="btn btn-success" id="download-txt-btn">
-                        ⬇️ DOWNLOAD AS .txt
-                    </button>
-                    <button class="btn btn-primary" id="new-btn">
-                        🔄 DECODE NEW FILE
-                    </button>
+                    <button class="btn btn-success" id="download-py-btn">⬇️ DOWNLOAD AS .py</button>
+                    <button class="btn btn-success" id="download-txt-btn">⬇️ DOWNLOAD AS .txt</button>
+                    <button class="btn btn-primary" id="new-btn">🔄 DECODE NEW FILE</button>
                 </div>
                 
                 <div class="warning">
-                    ⚠️ This is a bytecode-level reconstruction. Variable names &amp; comments from original source may be lost or renamed.
+                    ⚠️ This is a bytecode-level reconstruction. Variable names may be lost.
                 </div>
             </div>
 
-            <!-- Footer -->
             <div class="footer">
                 <div>SECURE MODE • NO CODE EXECUTION • PURE STATIC ANALYSIS</div>
-                <div>Deployed via GitHub + Render • No custom domain</div>
+                <div>GitHub + Render • No custom domain</div>
             </div>
         </div>
     </div>
